@@ -87,8 +87,10 @@ dc=com
 
 ## Persistent Data & Upgrades
 
-OpenLDAP configuration (`/etc/openldap/slapd.d`) and user data (`/var/lib/openldap/openldap-data`) are stored in persistent volumes.
-Existing volumes are **not** overwritten when upgrading the container image; apply `cn=config` or `ppolicy` changes manually via `ldapmodify` as documented in [CHANGELOG.md](CHANGELOG.md).
+- **Recommended volume mapping**: persist **only** `/var/lib/openldap` (user data, groups, `ppolicy`, and migration state).
+- **Do not mount `/etc/openldap/slapd.d`** unless you manage `cn=config` manually with `ldapmodify`. When `/etc/openldap/slapd.d` is empty at container startup, `entrypoint.sh` automatically rebuilds `cn=config` from your environment variables and templates (and runs `slapindex` if `data.mdb` already exists).
+- **Automatic data migrations**: `entrypoint.sh` stores the deployed image version in `/var/lib/openldap/.image_version` and the last applied migration in `/var/lib/openldap/.migration_version`. When upgrading an existing `/var/lib/openldap` volume (even without a prior `.migration_version` file), pending scripts in `migrations/` are applied offline via `slapmodify`.
+- If you still mount `/etc/openldap/slapd.d` persistently, apply `cn=config` changes manually via `ldapmodify` as documented in [CHANGELOG.md](CHANGELOG.md).
 
 ## Running Tests
 

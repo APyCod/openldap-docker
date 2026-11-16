@@ -28,11 +28,13 @@ RUN  adduser -D -H -u 666  ldap \
 
 COPY etc/* /etc/openldap/
 COPY base/*.ldif.template.sh /etc/openldap/root_data/
+COPY migrations/*.ldif.template.sh /etc/openldap/migrations/
 COPY entrypoint.sh /entrypoint.sh
 
-VOLUME ["/etc/openldap/slapd.d", "/var/lib/openldap/"]
+VOLUME ["/var/lib/openldap/"]
 
 RUN  chmod 500 /etc/openldap/*.ldif.template.sh \
+  && chmod 500 /etc/openldap/migrations/*.ldif.template.sh \
   && chmod 700 /entrypoint.sh \
   && mkdir -p /run/openldap/ \
   && chown ldap:ldap -R /run/openldap/

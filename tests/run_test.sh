@@ -60,7 +60,9 @@ function cleanup_env {
     set +e
     docker rm -v -f $TEST_LDAP_CT
     docker rm -v -f $LDAP_CT
+    docker rm -v -f CI_ldap_migration
     docker volume rm $CERTIFICAT_VOLUME_NAME
+    docker volume rm CI_ldap_data
     docker network rm $LDAP_NETWORK
     set -e
 }
@@ -144,6 +146,56 @@ function stop_ldap {
     docker network rm $LDAP_NETWORK
 }
 
+function test_persistence_and_migration {
+    DATA_VOL="CI_ldap_data"
+    MIG_CT="CI_ldap_migration"
+    docker volume create "$DATA_VOL"
+
+    # 1. Initial start with persistent /var/lib/openldap and ephemeral slapd.d
+    docker run -d \
+        -v "$DATA_VOL":/var/lib/openldap \
+        -v "$CERTIFICAT_VOLUME_NAME":/ssl \
+        -e LDAP_CA_CERTIFICATE_PATH="/ssl/ca.crt" \
+        -e LDAP_CERTIFICATE_PATH="/ssl/$LDAP_HOST.crt" \
+        -e LDAP_CERTIFICATE_KEY_PATH="/ssl/$LDAP_HOST.key" \
+        -e DOMAIN="$DOMAIN" \
+        -e LDAP_SUB_DOMAIN="$SUB_DOMAIN" \
+        --name "$MIG_CT" "$LDAP_IMAGE:$CURRENT_BUILD_LDAP_TAG"
+    sleep 2
+    if [[ `docker inspect -f {{.State.Running}} "$MIG_CT"` != "true" ]]; then
+        docker logs "$MIG_CT"
+        exit 1
+    fi
+    docker exec "$MIG_CT" test -f /var/lib/openldap/.migration_version
+    docker exec "$MIG_CT" test -f /var/lib/openldap/.image_version
+    docker rm -f "$MIG_CT"
+
+    # 2. Simulate pre-versioning volume (remove version markers) and restart
+    docker run --rm \
+        -v "$DATA_VOL":/var/lib/openldap \
+        --entrypoint sh "$LDAP_IMAGE:$CURRENT_BUILD_LDAP_TAG" \
+        -c "rm -f /var/lib/openldap/.migration_version /var/lib/openldap/.image_version"
+
+    docker run -d \
+        -v "$DATA_VOL":/var/lib/openldap \
+        -v "$CERTIFICAT_VOLUME_NAME":/ssl \
+        -e LDAP_CA_CERTIFICATE_PATH="/ssl/ca.crt" \
+        -e LDAP_CERTIFICATE_PATH="/ssl/$LDAP_HOST.crt" \
+        -e LDAP_CERTIFICATE_KEY_PATH="/ssl/$LDAP_HOST.key" \
+        -e DOMAIN="$DOMAIN" \
+        -e LDAP_SUB_DOMAIN="$SUB_DOMAIN" \
+        --name "$MIG_CT" "$LDAP_IMAGE:$CURRENT_BUILD_LDAP_TAG"
+    sleep 2
+    if [[ `docker inspect -f {{.State.Running}} "$MIG_CT"` != "true" ]]; then
+        docker logs "$MIG_CT"
+        exit 1
+    fi
+    docker logs "$MIG_CT" | grep -q "Applying migration 1"
+    docker exec "$MIG_CT" test -f /var/lib/openldap/.migration_version
+    docker rm -f "$MIG_CT"
+    docker volume rm "$DATA_VOL"
+}
+
 cleanup_env
 build_ldap_image
 build_test_ldap_image
@@ -152,4 +204,5 @@ run_ldap
 run_tests
 if ! $KEEP_RUNNING; then
     stop_ldap
+    test_persistence_and_migration
 fi

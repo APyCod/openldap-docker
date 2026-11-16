@@ -142,9 +142,11 @@ function import_files {
     fi
 }
 
+REBUILT_CONFIG=false
 if [[ -d "/etc/openldap/slapd.d/cn=config" ]]; then
     echo "LDAP Config volumes already setup!"
 else
+    REBUILT_CONFIG=true
     echo "Génerate slapd.ldif from templates"
     /etc/openldap/slapd.ldif.template.sh \
         -C "$LDAP_CERTIFICATE_PATH" \
@@ -165,15 +167,58 @@ else
     rm -f /etc/openldap/slapd.ldif
 fi
 
+VERSION_FILE="/var/lib/openldap/.image_version"
+MIGRATION_FILE="/var/lib/openldap/.migration_version"
+
+function latest_migration_version {
+    latest=0
+    for file in /etc/openldap/migrations/*.ldif.template.sh; do
+        [ -e "$file" ] || continue
+        num=$(basename "$file" | sed 's/^\([0-9]*\)_.*/\1/' | sed 's/^0*//')
+        num=${num:-0}
+        if [ "$num" -gt "$latest" ]; then
+            latest="$num"
+        fi
+    done
+    echo "$latest"
+}
+
+function run_migrations {
+    last_applied=0
+    if [ -f "$MIGRATION_FILE" ]; then
+        last_applied=$(tr -d '[:space:]' < "$MIGRATION_FILE")
+        last_applied=${last_applied:-0}
+    fi
+    echo "Checking migrations (last applied: $last_applied)..."
+    for file in /etc/openldap/migrations/*.ldif.template.sh; do
+        [ -e "$file" ] || continue
+        num=$(basename "$file" | sed 's/^\([0-9]*\)_.*/\1/' | sed 's/^0*//')
+        num=${num:-0}
+        if [ "$num" -gt "$last_applied" ]; then
+            output="/tmp/migration_${num}.ldif"
+            echo "Applying migration $num from $(basename "$file")..."
+            "$file" -D "$LDAP_ROOT_DC" > "$output"
+            slapmodify -d "$LDAP_LOG_LEVEL" -F /etc/openldap/slapd.d/ -l "$output"
+            rm -f "$output"
+            echo "$num" > "$MIGRATION_FILE"
+        fi
+    done
+}
+
 if [[ -f "/var/lib/openldap/openldap-data/data.mdb" ]]; then
     echo "LDAP DATA volume already exists!"
-    # TODO: execute ldap modify according update version mecanism to define
-    # import_files /srv/ldap/init/
+    if [ "$REBUILT_CONFIG" = true ]; then
+        echo "Re-indexing existing LDAP database..."
+        slapindex -d "$LDAP_LOG_LEVEL" -F /etc/openldap/slapd.d/
+    fi
+    run_migrations
 else
     import_files /etc/openldap/root_data/ true
     import_files /srv/ldap/init/ false
     import_files /srv/ldap/demo/ false
+    latest_migration_version > "$MIGRATION_FILE"
 fi
+echo "${OPENLDAP_VERSION:-unknown}" > "$VERSION_FILE"
 
 echo "Make slapd.d own and only usable by ldap user"
 chown -R ldap:ldap /etc/openldap/slapd.d/
