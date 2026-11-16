@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Non-TTY environment support in [tests/run_test.sh](tests/run_test.sh) for CI execution.
+- Fixed undefined `$SUB_DOMAIN` variable (should be `$LDAP_SUB_DOMAIN`) for `LDAP_CERTIFICATE_KEY_PATH` default and properly quoted shell variables in [entrypoint.sh](entrypoint.sh).
 
 ### Migration notes (existing production instances)
 Existing instances using a persistent `/etc/openldap/slapd.d` volume keep their current ACLs when upgrading the image.

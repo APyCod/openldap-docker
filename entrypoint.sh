@@ -26,7 +26,7 @@ ORGANIZATION=${ORGANIZATION:-"Example corporation"}
 LDAP_SUB_DOMAIN=${LDAP_SUB_DOMAIN:-ldap}
 LDAP_CA_CERTIFICATE_PATH=${LDAP_CA_CERTIFICATE_PATH:-false}
 LDAP_CERTIFICATE_PATH=${LDAP_CERTIFICATE_PATH:-/ssl/$LDAP_SUB_DOMAIN.$DOMAIN.crt}
-LDAP_CERTIFICATE_KEY_PATH=${LDAP_CERTIFICATE_KEY_PATH:-/ssl/$SUB_DOMAIN.$DOMAIN.key}
+LDAP_CERTIFICATE_KEY_PATH=${LDAP_CERTIFICATE_KEY_PATH:-/ssl/$LDAP_SUB_DOMAIN.$DOMAIN.key}
 LDAP_TLS_VERIFY_CLIENT=${LDAP_TLS_VERIFY_CLIENT:-never}
 LDAP_TLS_CIPHER_SUITE=${LDAP_TLS_CIPHER_SUITE:-DEFAULT}
 
@@ -120,18 +120,20 @@ function import_files {
     dir_to_remove=$2
     if [[ -d "$directory" ]]; then
 
-        for file in `ls $directory*.ldif.template.sh`; do
-            output=${file%.template.sh}
+        for file in "$directory"*.ldif.template.sh; do
+            [ -e "$file" ] || continue
+            output="${file%.template.sh}"
             echo "generate $output from template: $file"
-            $file -D "$LDAP_ROOT_DC" \
+            "$file" -D "$LDAP_ROOT_DC" \
                   -d "$DOMAIN" \
                   -o "$ORGANIZATION" \
                   -u "$LDAP_DEFAULT_ADMIN_UID" \
-                  -p "$LDAP_DEFAULT_ADMIN_PASSWORD" > $output
+                  -p "$LDAP_DEFAULT_ADMIN_PASSWORD" > "$output"
         done
-        for file in `ls $directory*.ldif`; do
+        for file in "$directory"*.ldif; do
+            [ -e "$file" ] || continue
             echo "Import init data: $file"
-            slapadd -d $LDAP_LOG_LEVEL -F /etc/openldap/slapd.d/ -l "$file"
+            slapadd -d "$LDAP_LOG_LEVEL" -F /etc/openldap/slapd.d/ -l "$file"
         done
         if [ "$dir_to_remove" = true ]; then
             rm -r "$directory"
@@ -144,20 +146,20 @@ if [[ -d "/etc/openldap/slapd.d/cn=config" ]]; then
 else
     echo "Génerate slapd.ldif from templates"
     /etc/openldap/slapd.ldif.template.sh \
-        -C $LDAP_CERTIFICATE_PATH \
-        -K $LDAP_CERTIFICATE_KEY_PATH \
-        -A $LDAP_CA_CERTIFICATE_PATH \
+        -C "$LDAP_CERTIFICATE_PATH" \
+        -K "$LDAP_CERTIFICATE_KEY_PATH" \
+        -A "$LDAP_CA_CERTIFICATE_PATH" \
         -V "$LDAP_TLS_VERIFY_CLIENT" \
         -S "$LDAP_TLS_CIPHER_SUITE" > /etc/openldap/slapd.ldif
     /etc/openldap/lmdb.ldif.template.sh \
-        -P $LDAP_ROOT_PASSWORD \
-        -D $LDAP_ROOT_DC >> /etc/openldap/slapd.ldif
+        -P "$LDAP_ROOT_PASSWORD" \
+        -D "$LDAP_ROOT_DC" >> /etc/openldap/slapd.ldif
     /etc/openldap/overlay_settings.ldif.template.sh \
-        -D $LDAP_ROOT_DC  \
+        -D "$LDAP_ROOT_DC"  \
         -u "$LDAP_DEFAULT_ADMIN_UID" >> /etc/openldap/slapd.ldif
 
     echo "import slapd.ldif"
-    slapadd -d $LDAP_LOG_LEVEL -n0 -F /etc/openldap/slapd.d/ \
+    slapadd -d "$LDAP_LOG_LEVEL" -n0 -F /etc/openldap/slapd.d/ \
             -l /etc/openldap/slapd.ldif
     rm -f /etc/openldap/slapd.ldif
 fi
@@ -179,4 +181,4 @@ chown ldap:ldap -R /var/lib/openldap
 
 echo "Run slapd..."
 # exec slapd to give it PID 1 (otherwise signals are not sent properly)
-exec slapd -d $LDAP_LOG_LEVEL -F /etc/openldap/slapd.d -u ldap -g ldap -h "ldaps://"
+exec slapd -d "$LDAP_LOG_LEVEL" -F /etc/openldap/slapd.d -u ldap -g ldap -h "ldaps://"
