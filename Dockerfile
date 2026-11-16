@@ -37,6 +37,9 @@ RUN  chmod 500 /etc/openldap/*.ldif.template.sh \
   && mkdir -p /run/openldap/ \
   && chown ldap:ldap -R /run/openldap/
 
-EXPOSE 389 636
+EXPOSE 636
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD nc -z 127.0.0.1 636 || exit 1
 
 ENTRYPOINT ["dumb-init", "--", "/entrypoint.sh"]

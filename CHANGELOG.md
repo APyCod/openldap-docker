@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Argon2 password hashing (`openldap-passwd-argon2` / `argon2.so`) with `olcPasswordHash: {ARGON2}` on `olcDatabase=frontend,cn=config` and unit test `test_password_hashed_with_argon2` in [test_ldap_update_entries.py](tests/src/tests/test_ldap_update_entries.py).
 - Unit test `test_default_policy_min_length_and_safe_modify` in [test_ldap_ppolicy_overlay.py](tests/src/tests/test_ldap_ppolicy_overlay.py).
 - Unit test `test_cannot_read_own_user_password` in [test_ldap_search_entries.py](tests/src/tests/test_ldap_search_entries.py).
+- `HEALTHCHECK` in [Dockerfile](Dockerfile) probing LDAPS port `636`.
 
 ### Changed
 - **Security (`ppolicy`)**: hardened default password policy in [base/01_policies.ldif.template.sh](base/01_policies.ldif.template.sh) (`pwdMinLength: 12`, `pwdFailureCountInterval: 300`, `pwdLockoutDuration: 300`, `pwdSafeModify: TRUE`).
@@ -22,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Restricted `self` access on `userPassword` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) (`by self =wx` on `ou=people` and removed `by self read` on `ou=applications`) so users and apps cannot read back their own password hashes.
   - Added `olcAccess: {290}` and updated `{300}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) so `ou=applications` accounts can only read basic identity attributes (`entry`, `objectClass`, `uid`, `cn`, `sn`, `givenName`, `displayName`, `mail`, `o`, `ou`) on `ou=people` (in addition to `memberOf` via `{200}`).
   - Added `olcAccess: {390}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) to prevent members of `cn=ldap_people_admin` from modifying `cn=ldap_apps_admin` (privilege escalation). Members of `cn=ldap_people_admin` retain read access.
+- **Container (`Dockerfile`)**: removed unused cleartext port `389` from `EXPOSE` (`EXPOSE 636` only).
 - **Security (`entrypoint.sh`)**:
   - `LDAP_DEFAULT_ADMIN_PASSWORD` no longer defaults to `"Change Me!"`; a random password is generated if unset.
   - Removed printing `/etc/openldap/slapd.ldif` to container logs and deleted the temporary file after `slapadd`.
