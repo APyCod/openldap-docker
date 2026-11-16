@@ -105,7 +105,7 @@ class TestLdapPPolicyOverlay(LdapTestCase):
             "testing to update its own cn attribute"
         )
 
-    def test_default_policy_min_length_and_safe_modify(self):
+    def test_default_policy_min_length_and_admin_reset(self):
         user_uid = "user-%s" % uuid4()
         user_dn = "uid=%s,ou=people,%s" % (user_uid, ROOT_DC)
         initial_pass = "InitialStrongPass-%s" % uuid4()
@@ -127,20 +127,33 @@ class TestLdapPPolicyOverlay(LdapTestCase):
             )
             self.assertFalse(ok, "Password shorter than 12 chars should fail")
 
-            # pwdSafeModify: TRUE must reject self-modify without old password
-            self.assertFalse(
-                user_con.modify(
-                    user_dn,
-                    {'userPassword': [
-                        (MODIFY_REPLACE, ["NewStrongPass-%s" % uuid4()])
-                    ]}
-                ),
-                "Self password modify without old password should fail"
-            )
-
             # Valid >= 12-char password with old password must succeed
             new_pass = "NewStrongPass-%s" % uuid4()
             ok, res = self.change_ldap_password(
                 user_con, user_dn, initial_pass, new_pass
             )
             self.assertTrue(ok, res)
+
+        # Non-root ldap_people_admin (user & app, e.g. Authelia) must be able
+        # to reset a user's password under the default policy without knowing
+        # the old password (pwdSafeModify: FALSE by default).
+        for admin_role in ('app-people-admin', 'user-people-admin'):
+            admin_ctx = self.users[admin_role]
+            reset_pass = "AdminResetPass-%s" % uuid4()
+            with ldap_connection(
+                dn=admin_ctx['user_dn'], password=admin_ctx['password']
+            ) as admin_con:
+                self.assertTrue(
+                    admin_con.modify(
+                        user_dn,
+                        {'userPassword': [(MODIFY_REPLACE, [reset_pass])]}
+                    ),
+                    "Role %s failed to reset password: %r" % (
+                        admin_role, admin_con.result
+                    )
+                )
+            with ldap_connection(dn=user_dn, password=reset_pass) as user_con:
+                self.assertTrue(
+                    user_con.search(user_dn, '(objectclass=*)'),
+                    user_con.result
+                )

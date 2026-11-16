@@ -2,19 +2,23 @@
 
 set -e
 
-USAGE="Usage: $0 -D Root LDAP DC [-h]
+USAGE="Usage: $0 -D Root LDAP DC [-S TRUE|FALSE] [-h]
 
 Template to generate policies config file
 
 Options:
     -D ROOT LDAP DC     The root ldap dc, should looks like dc=example,dc=com
+    -S SAFE MODIFY      Require old password on modify (default: FALSE)
     -h                  Show this help.
 "
 
-while getopts "D:h" OPTION
+SAFE_MODIFY=${LDAP_PPOLICY_SAFE_MODIFY:-FALSE}
+
+while getopts "D:S:h" OPTION
 do
     case $OPTION in
         D) ROOT_LDAP_DC=$OPTARG;;
+        S) SAFE_MODIFY=$OPTARG;;
         h) echo "$USAGE";
            exit;;
         *) echo "Ignore unknown parameter while generating policies
@@ -57,7 +61,9 @@ pwdMinLength: 12
 # they connect the first time the matter is to make sure we have tool that
 # can handle this behaviour
 pwdMustChange: FALSE
-# Require old password when users change their own password
-pwdSafeModify: TRUE
+# Keep FALSE by default so non-root admins (e.g. Authelia in ldap_people_admin)
+# can reset user passwords without knowing the old password.
+# Configurable via LDAP_PPOLICY_SAFE_MODIFY (or -S).
+pwdSafeModify: $SAFE_MODIFY
 
 EOF
