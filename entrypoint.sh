@@ -27,6 +27,8 @@ LDAP_SUB_DOMAIN=${LDAP_SUB_DOMAIN:-ldap}
 LDAP_CA_CERTIFICATE_PATH=${LDAP_CA_CERTIFICATE_PATH:-false}
 LDAP_CERTIFICATE_PATH=${LDAP_CERTIFICATE_PATH:-/ssl/$LDAP_SUB_DOMAIN.$DOMAIN.crt}
 LDAP_CERTIFICATE_KEY_PATH=${LDAP_CERTIFICATE_KEY_PATH:-/ssl/$SUB_DOMAIN.$DOMAIN.key}
+LDAP_TLS_VERIFY_CLIENT=${LDAP_TLS_VERIFY_CLIENT:-never}
+LDAP_TLS_CIPHER_SUITE=${LDAP_TLS_CIPHER_SUITE:-DEFAULT}
 
 USAGE="Usage: $0 [-C COMMAND [params [params [...]]] [-P Root Password] [-h]
                  [-u Default administrator uid] [-p Default admin password]
@@ -68,11 +70,15 @@ Options:
                     Can also be set through environement variable
                     LDAP_CERTIFICATE_KEY_PATH
                     (default: $LDAP_CERTIFICATE_KEY_PATH)
+    -V TLS Verify   Client certificate verification (default: $LDAP_TLS_VERIFY_CLIENT)
+                    Can also be set through LDAP_TLS_VERIFY_CLIENT
+    -S Cipher       TLS cipher suite (default: $LDAP_TLS_CIPHER_SUITE)
+                    Can also be set through LDAP_TLS_CIPHER_SUITE
     -h              Show this help.
 "
 
 
-while getopts "C:P:L:a:c:k:d:D:O:p:u:h" OPTION
+while getopts "C:P:L:a:c:k:d:D:O:p:u:V:S:h" OPTION
 do
     case $OPTION in
         C) if [[ $1 == "-C" ]]; then
@@ -93,6 +99,8 @@ do
         a) LDAP_CA_CERTIFICATE_PATH=$OPTARG;;
         c) LDAP_CERTIFICATE_PATH=$OPTARG;;
         k) LDAP_CERTIFICATE_KEY_PATH=$OPTARG;;
+        V) LDAP_TLS_VERIFY_CLIENT=$OPTARG;;
+        S) LDAP_TLS_CIPHER_SUITE=$OPTARG;;
         h) echo "$USAGE";
            exit;;
         *) echo "Unknown parameter... ";
@@ -138,7 +146,9 @@ else
     /etc/openldap/slapd.ldif.template.sh \
         -C $LDAP_CERTIFICATE_PATH \
         -K $LDAP_CERTIFICATE_KEY_PATH \
-        -A $LDAP_CA_CERTIFICATE_PATH > /etc/openldap/slapd.ldif
+        -A $LDAP_CA_CERTIFICATE_PATH \
+        -V "$LDAP_TLS_VERIFY_CLIENT" \
+        -S "$LDAP_TLS_CIPHER_SUITE" > /etc/openldap/slapd.ldif
     /etc/openldap/lmdb.ldif.template.sh \
         -P $LDAP_ROOT_PASSWORD \
         -D $LDAP_ROOT_DC >> /etc/openldap/slapd.ldif

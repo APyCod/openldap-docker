@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - **Security (`ppolicy`)**: hardened default password policy in [base/01_policies.ldif.template.sh](base/01_policies.ldif.template.sh) (`pwdMinLength: 12`, `pwdFailureCountInterval: 300`, `pwdLockoutDuration: 300`, `pwdSafeModify: TRUE`).
+- **Security (TLS)**: hardened TLS defaults in [etc/slapd.ldif.template.sh](etc/slapd.ldif.template.sh) (`olcTLSProtocolMin: 3.3`, `olcSecurity: tls=1`), fixed missing `S:` in `getopts`, and exposed `LDAP_TLS_VERIFY_CLIENT` (`-V`) and `LDAP_TLS_CIPHER_SUITE` (`-S`) in [entrypoint.sh](entrypoint.sh).
 - **Security (ACLs)**:
   - Added `olcAccess: {290}` and updated `{300}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) so `ou=applications` accounts can only read basic identity attributes (`entry`, `objectClass`, `uid`, `cn`, `sn`, `givenName`, `displayName`, `mail`, `o`, `ou`) on `ou=people` (in addition to `memberOf` via `{200}`).
   - Added `olcAccess: {390}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) to prevent members of `cn=ldap_people_admin` from modifying `cn=ldap_apps_admin` (privilege escalation). Members of `cn=ldap_people_admin` retain read access.
@@ -69,4 +70,16 @@ pwdLockoutDuration: 300
 -
 replace: pwdSafeModify
 pwdSafeModify: TRUE
+```
+
+To harden TLS on an existing production instance:
+
+```ldif
+dn: cn=config
+changetype: modify
+replace: olcTLSProtocolMin
+olcTLSProtocolMin: 3.3
+-
+replace: olcSecurity
+olcSecurity: tls=1
 ```

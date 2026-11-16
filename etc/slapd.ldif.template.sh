@@ -19,7 +19,7 @@ Options:
 "
 
 
-while getopts "C:K:A:V:h" OPTION
+while getopts "C:K:A:V:S:h" OPTION
 do
     case $OPTION in
         C) CERTIF_PATH=$OPTARG;;
@@ -65,6 +65,7 @@ olcTLSCertificateFile: $CERTIF_PATH
 olcTLSCertificateKeyFile: $CERTIF_KEY_PATH
 olcTLSVerifyClient: $TLS_VERIF_CLIENT
 olcTLSCipherSuite: $CIPHER
+olcTLSProtocolMin: 3.3
 $CA_PATH
 #
 # Define global ACLs to disable default read access.
@@ -81,7 +82,8 @@ olcArgsFile: /run/openldap/slapd.args
 #   Require integrity protection (prevent hijacking)
 #   Require 112-bit (3DES or better) encryption for updates
 #   Require 64-bit encryption for simple bind
-#olcSecurity: ssf=1 update_ssf=112 simple_bind=64
+# Require TLS protection for all operations
+olcSecurity: tls=1
 
 dn: cn=module,cn=config
 objectClass: olcModuleList
