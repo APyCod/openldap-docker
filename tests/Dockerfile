@@ -1,4 +1,4 @@
-FROM python:3.13-alpine3.23
+FROM python:3.15-alpine3.24
 LABEL maintainer Pierre Verkest <pverkest@anybox.fr>
 
 RUN apk add --update \

@@ -1,2 +1,3 @@
 pytest
-ldap3==2.9.1
+ldap3
+pyasn1<0.6.0
