@@ -106,6 +106,14 @@ olcAccess: {350}
     by group.exact="cn=ldap_apps_admin,ou=groups,$ROOT_LDAP_DC" write
     by self read
     by * none
+# Protect privileged apps admin group from cross-privilege escalation:
+# ldap_people_admin can read it, but only ldap_apps_admin (and rootDN) can edit it
+olcAccess: {390}
+  to dn.exact="cn=ldap_apps_admin,ou=groups,$ROOT_LDAP_DC"
+    by group.exact="cn=ldap_apps_admin,ou=groups,$ROOT_LDAP_DC" write
+    by group.exact="cn=ldap_people_admin,ou=groups,$ROOT_LDAP_DC" read
+    by dn.one="ou=applications,$ROOT_LDAP_DC" read
+    by * none
 # Allow ldap admin to manage groups
 # Application can read groups as well
 olcAccess: {400}

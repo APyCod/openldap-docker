@@ -1,5 +1,4 @@
-[![Build Status](https://travis-ci.org/anybox/openldap-docker.svg?branch=master
-)](https://travis-ci.org/anybox/openldap-docker)
+[![CI & GHCR Publish](https://github.com/APyCod/openldap-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/APyCod/openldap-docker/actions/workflows/ci.yml)
 
 # docker ldap
 
@@ -178,6 +177,6 @@ can generate that hash for you to use it securly in you ldif files.
 A way to do is by running ``slappasswd`` using that same image:
 
 ```bash
-docker run -it --rm --entrypoint slappasswd anybox/openldap -s MySecrets
+docker run -it --rm --entrypoint slappasswd ghcr.io/apycod/openldap-docker -s MySecrets
 {SSHA}TYtweERxzym/BomeU820EOqoIxJ2X+oT
 ```

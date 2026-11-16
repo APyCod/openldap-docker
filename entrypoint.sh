@@ -10,13 +10,17 @@
 set -e
 set +x
 
-PASS=`< /dev/urandom tr -dc _A-Za-z0-9~\&\(\)\^$%,?\;. | head -c 32;echo`
-SSHA_PASS=`slappasswd -ns $PASS`
+PASS=`< /dev/urandom tr -dc _A-Za-z0-9@#%^+=- | head -c 32;echo`
+SSHA_PASS=`slappasswd -ns "$PASS"`
 
 LDAP_ROOT_PASSWORD=${LDAP_ROOT_PASSWORD:-$SSHA_PASS}
 LDAP_LOG_LEVEL=${LDAP_LOG_LEVEL:-64}
 LDAP_DEFAULT_ADMIN_UID=${LDAP_DEFAULT_ADMIN_UID:-"administrator"}
-LDAP_DEFAULT_ADMIN_PASSWORD=${LDAP_DEFAULT_ADMIN_PASSWORD:-`slappasswd -ns "Change Me!"`}
+if [[ -z "$LDAP_DEFAULT_ADMIN_PASSWORD" ]]; then
+    echo "WARNING: LDAP_DEFAULT_ADMIN_PASSWORD is not set, generating a random password." >&2
+    DEFAULT_ADMIN_PASS=`< /dev/urandom tr -dc _A-Za-z0-9@#%^+=- | head -c 32;echo`
+    LDAP_DEFAULT_ADMIN_PASSWORD=`slappasswd -ns "$DEFAULT_ADMIN_PASS"`
+fi
 DOMAIN=${DOMAIN:-example.com}
 ORGANIZATION=${ORGANIZATION:-"Example corporation"}
 LDAP_SUB_DOMAIN=${LDAP_SUB_DOMAIN:-ldap}
@@ -143,9 +147,9 @@ else
         -u "$LDAP_DEFAULT_ADMIN_UID" >> /etc/openldap/slapd.ldif
 
     echo "import slapd.ldif"
-    cat /etc/openldap/slapd.ldif
     slapadd -d $LDAP_LOG_LEVEL -n0 -F /etc/openldap/slapd.d/ \
             -l /etc/openldap/slapd.ldif
+    rm -f /etc/openldap/slapd.ldif
 fi
 
 if [[ -f "/var/lib/openldap/openldap-data/data.mdb" ]]; then

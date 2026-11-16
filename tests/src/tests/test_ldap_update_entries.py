@@ -1038,3 +1038,77 @@ class TestLdapUpdateEntries(LdapTestCase):
             test_suite,
             "Test updating an other app password"
         )
+
+    def _assert_privileged_group_members_acl(
+        self, group_dn, allowed_roles, description
+    ):
+        user_uid = "user-%s" % uuid4()
+        user_dn = "uid=%s,ou=people,%s" % (user_uid, ROOT_DC)
+
+        def clean():
+            with ldap_connection(
+                    dn=ROOT_LDAP_DN, password=ROOT_LDAP_SECRET
+            ) as root_con:
+                root_con.modify(
+                    group_dn,
+                    {'member': [(MODIFY_DELETE, [user_dn])]}
+                )
+                root_con.delete(user_dn)
+
+        self.addCleanup(clean)
+
+        def prepare(con, context, data):
+            clean()
+            self.create_user(user_uid, user_dn)
+
+        def add_member(con, context, data):
+            return (
+                con.modify(
+                    group_dn,
+                    {'member': [(MODIFY_ADD, [user_dn])]}),
+                con.result
+            )
+
+        roles = [
+            'anonymous', 'user', 'user-people-admin', 'user-apps-admin',
+            'user-admin', 'admin', 'app', 'app-people-admin',
+            'app-apps-admin', 'app-admin',
+        ]
+        test_suite = {
+            role: {
+                'assert': (
+                    self.assertTrue if role in allowed_roles
+                    else self.assertFalse
+                ),
+                'run_before_test': prepare,
+                'run_after_test': None,
+            }
+            for role in roles
+        }
+        self.run_case(add_member, test_suite, description)
+
+    def test_update_ldap_apps_admin_group_members(self):
+        self._assert_privileged_group_members_acl(
+            "cn=ldap_apps_admin,ou=groups,%s" % ROOT_DC,
+            allowed_roles={
+                'user-apps-admin', 'user-admin', 'admin',
+                'app-apps-admin', 'app-admin',
+            },
+            description=(
+                "testing that only ldap_apps_admin and root can edit "
+                "ldap_apps_admin members"
+            ),
+        )
+
+    def test_update_ldap_people_admin_group_members(self):
+        self._assert_privileged_group_members_acl(
+            "cn=ldap_people_admin,ou=groups,%s" % ROOT_DC,
+            allowed_roles={
+                'user-people-admin', 'user-admin', 'admin',
+                'app-people-admin', 'app-admin',
+            },
+            description=(
+                "testing that only ldap_people_admin and root can edit "
+                "ldap_people_admin members"
+            ),
+        )

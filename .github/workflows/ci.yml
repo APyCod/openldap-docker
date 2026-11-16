@@ -19,7 +19,7 @@ env:
 jobs:
   test:
     name: Run unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -33,7 +33,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' &&
       (github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26
     permissions:
       contents: read
       packages: write
