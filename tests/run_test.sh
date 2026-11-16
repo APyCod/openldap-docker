@@ -27,6 +27,10 @@ TEST_LDAP_IMAGE="test_ldap"
 LDAP_NETWORK=net_ci_ldap
 LDAP_NETWORK_MASK=144.18.0.0/16
 LDAP_SERVER_IP=144.18.0.23
+DOCKER_TTY=""
+if [ -t 0 ]; then
+    DOCKER_TTY="-it"
+fi
 
 USAGE="Usage: $0 [-h] [-k]
 
@@ -81,7 +85,7 @@ function prepare_certificates {
         -f tests/certificate/Dockerfile \
         ./tests/certificate/
     docker run \
-        -it --rm \
+        $DOCKER_TTY --rm \
         -v $CERTIFICAT_VOLUME_NAME:/certificate \
         -e UID=666 \
         -e GID=666 \
@@ -131,7 +135,7 @@ function run_tests {
         -e LDAP_HOST="ldaps://$LDAP_HOST" \
         -e ROOT_DC="dc=$(echo "$DOMAIN" | sed -e 's/\./,dc=/g')" \
         -v $CERTIFICAT_VOLUME_NAME:/ssl \
-        -it --rm \
+        $DOCKER_TTY --rm \
         $TEST_LDAP_IMAGE:$CURRENT_BUILD_TEST_LDAP_TAG
 }
 
