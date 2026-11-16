@@ -2,181 +2,109 @@
 
 # docker ldap
 
-This project aims to setup OpenLdap in alpine Docker container.
+This project sets up OpenLDAP (2.6) in an Alpine Docker container (`ldaps://` on port `636`, `{ARGON2}` password hashing, `memberof`, `refint` and `ppolicy` overlays).
 
-It provide a default configuration and aims to give some tools to
-upgrade changes between 2 versions.
+It provides a default ACL & directory layout and includes a pytest integration suite ([tests/src/tests](tests/src/tests)) runnable via `./tests/run_test.sh`.
 
-It's probably easier for you to fork this repo if you don't like
-those settings but like how it's administrate and test.
+It's probably easier for you to fork this repo if you don't like those settings but like how it's administered and tested.
 
-Quick Start
------------
+## Quick Start
 
-requirements:
+Requirements:
 
-- DNS point to your ldap server (here **ldap.example.org**)
-- You have a certificate for that domain (``ldap.example.org.crt`` and
-  ``ldap.example.crt.key``).
+- DNS pointing to your LDAP server (e.g. **ldap.example.org**)
+- A TLS certificate and private key for that domain (`ldap.example.org.crt` and `ldap.example.org.key`), readable by UID/GID `666` (`ldap:ldap` inside the container).
 
-Then you have to:
+Then:
 
-* First run only, setup ldap configuration and base config
-* Restart server, test, add user, change administrator configuration
-* Setup your first apache service and required configuration
+* First run only: initialize LDAP configuration (`/etc/openldap/slapd.d`) and base tree (`/var/lib/openldap/openldap-data`).
+* Restart server, test, add users/groups/applications.
+* Connect your services over `ldaps://` (TLS >= 1.2 enforced).
 
+## Configuration (Environment Variables)
 
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `DOMAIN` | `example.com` | Root LDAP domain (`dc=example,dc=com`) |
+| `ORGANIZATION` | `Example corporation` | Organization name (`o`) |
+| `LDAP_SUB_DOMAIN` | `ldap` | Subdomain used for default cert/key paths |
+| `LDAP_ROOT_PASSWORD` | Random `{ARGON2}` | Password hash for `cn=admin,<ROOT_DC>` |
+| `LDAP_DEFAULT_ADMIN_UID` | `administrator` | Default admin user under `ou=people` |
+| `LDAP_DEFAULT_ADMIN_PASSWORD` | Random `{ARGON2}` | Password hash for default admin user |
+| `LDAP_CA_CERTIFICATE_PATH` | `false` | Optional CA certificate path |
+| `LDAP_CERTIFICATE_PATH` | `/ssl/<sub_domain>.<domain>.crt` | Server TLS certificate path |
+| `LDAP_CERTIFICATE_KEY_PATH` | `/ssl/<sub_domain>.<domain>.key` | Server TLS private key path |
+| `LDAP_TLS_VERIFY_CLIENT` | `never` | `olcTLSVerifyClient` (`never`, `allow`, `try`, `demand`) |
+| `LDAP_TLS_CIPHER_SUITE` | `DEFAULT` | `olcTLSCipherSuite` |
+| `LDAP_PPOLICY_SAFE_MODIFY` | `FALSE` | Require old password on `userPassword` modify (`TRUE`/`FALSE`). Keep `FALSE` if non-root `ldap_people_admin` accounts (e.g. Authelia) reset user passwords |
+| `LDAP_LOG_LEVEL` | `64` | `slapd` debug/log level |
 
-## Default ldap configuration
+## Default LDAP Configuration
 
-In this chapter I'll give a short how we have organized default
-configuration and rules that are [tests (using python unitest)](
-tests/src/tests)
+If you configure `DOMAIN=example.com`, you get the following tree:
 
-Let's say you have configure ``DOMAINE=example.com`` you will get
-the following tree.
-
-```
-dc: com
+```text
+dc=com
 ├── dc=example
-│   ├── cn=admin                  # Root ldap account
-│   ├── ou=people                 # Where users are saved
-│   │   ├── uid=admin             # Default user administrator
+│   ├── cn=admin                  # Root LDAP account (bypasses ACLs)
+│   ├── ou=people                 # Physical users
+│   │   ├── uid=administrator     # Default user administrator
 │   │   ├── uid=user 1
-│   │   ├── uid=...
 │   │   └── uid=user n
-│   ├── groups                    # Group definition
-│   │   ├── cn=ldap_people_admin  # Ldap people administrator
-│   │   ├── cn=ldap_apps_admin    # Ldap applications administrator
+│   ├── ou=groups                 # Group definitions
+│   │   ├── cn=ldap_people_admin  # LDAP people & regular groups administrators
+│   │   ├── cn=ldap_apps_admin    # LDAP applications administrators
 │   │   ├── cn=group 1
-│   │   ├── cn=...
 │   │   └── cn=group n
-│   ├── applications              # Application/service account
+│   ├── ou=applications           # Application/service accounts
 │   │   ├── uid=app 1
-│   │   ├── uid=...
-│   │   └── uid=app2 n
-│   ├── policies                  # Ldap policies (about passwords)
+│   │   └── uid=app n
+│   ├── ou=policies               # Password policies (ppolicy)
 │   │   └── cn=default
 ```
 
-Bellow the list of user me may met:
+### Roles & Permissions
 
-* Anonymous
-* User account
-* Ldap adminstrator (those linked to ldap_people_admin and/or
-  ldap_apps_admin groups)
-* The root ldap administrator
-* Application/service user account & Groups
+* **Anonymous**: can only authenticate (`auth` on `userPassword`); no read/search access.
+* **User account** (`ou=people,dc=example,dc=com`): can read their own entry and change their own password (`userPassword` is write/auth only, not readable); cannot read or modify other users.
+* **LDAP people administrator** (member of `cn=ldap_people_admin,ou=groups,dc=example,dc=com`):
+  * Create, read, and update entries under `ou=people` (including resetting passwords).
+  * Create and manage regular groups under `ou=groups` (cannot modify `cn=ldap_apps_admin`, preventing cross-privilege escalation).
+  * Read `ou=policies` and `dc=example,dc=com`.
+* **LDAP applications administrator** (member of `cn=ldap_apps_admin,ou=groups,dc=example,dc=com`):
+  * Create, read, and update service accounts under `ou=applications` and manage `cn=ldap_apps_admin` membership.
+* **LDAP root account** (`cn=admin,dc=example,dc=com`): full unrestricted access; intended for automated deployments and `cn=config` migrations.
+* **Application accounts** (`ou=applications,dc=example,dc=com`):
+  * Can read groups under `ou=groups` and `memberOf` attributes.
+  * Can read only basic identity attributes (`entry`, `objectClass`, `uid`, `cn`, `sn`, `givenName`, `displayName`, `mail`, `o`, `ou`) on `ou=people` (restricted attributes such as `mobile` or `userPassword` are denied unless the app is also in `ldap_people_admin`).
 
+### Default Password Policy (`ppolicy`)
 
-### Anonymous connexion
+- Minimum length: `12` characters (`pwdMinLength: 12`)
+- History: `5` passwords (`pwdInHistory: 5`)
+- Lockout: `5` failed attempts within `300` seconds locks the account for `300` seconds (`pwdLockout: TRUE`)
+- `pwdSafeModify`: `FALSE` by default (configurable via `LDAP_PPOLICY_SAFE_MODIFY`)
 
-Anonymous account are only able to be inveted to connect themself.
+## Persistent Data & Upgrades
 
+OpenLDAP configuration (`/etc/openldap/slapd.d`) and user data (`/var/lib/openldap/openldap-data`) are stored in persistent volumes.
+Existing volumes are **not** overwritten when upgrading the container image; apply `cn=config` or `ppolicy` changes manually via `ldapmodify` as documented in [CHANGELOG.md](CHANGELOG.md).
 
-### User account
-
-Any user entry under ``ou=people,dc=example,dc=com``
-
-Users can read their own entry and change their own password, they
-can't read other users information or change other informations.
-
-
-### Ldap administrator
-
-Users that administrate following entries in ldap:
-
-* people
-* groups
-* applications
-
-
-Those users must have an entry in ``ou=people,dc=example,dc=com``
-and be a member of ``cn=ldap_people_admin,ou=groups,dc=example,dc=com``
-group.
-
-
-They are allowed to:
-
-* Create new ``inetOrgPerson`` entry under 
-  ``ou=people,dc=example,dc=com`` for user account.
-* Can update thoses people(users) entries (passwords as well)
-* Create new group entry under ``ou=groups,dc=example,dc=com``
-* Add members in groups
-
-if those users are also member of
-``cn=ldap_apps_admin,ou=groups,dc=example,dc=com`` group they can:
-
-* Create new application entry under
-  ``ou=applications,dc=example,dc=com``
-
-So they can do almost whaterver they want under
-``dc=example,dc=com``.
-
-
-### Ldap root account
-
-This account should be used only in automated way while deploying
-a new version, this user can do anything on LDAP. But to ensure
-tested rules still correct you should'nt change them directly.
- 
-
-### Application account & Groups
-
-Application user account (under
-``ou=applications,dc=example,dc=com``) are allowed to read group
-members ``ou=groups,dc=example,dc=com`` (ie: likes the Apache 
-``Require ldap-goup`` directive) and read user lists (children of
-``ou=people,dc=example,dc=com``) to allow to process the search.
-
-If an application account is linked to ``ldap_people_admin`` or
-``ldap_apps_admin`` that account is grant and able to update ldap
-informations.
-
-
-## Persistent data
-
-
-For OpenLDAP every thing are data configuration (stored in
-``/etc/openldap/slapd.d``) user accounts (stored in
-``var/lib/openldap/openldap-data``).
-
-This allow to change OpenLDAP while running, this is nice feature
-but could be dangerous if you are changing configuration that you
-haven't tested, you can easly create a security hole in your ldap.
-
-## Install - update - upgrade
-
-
-TODO: handle version number diff to handle upgrade between versions
-
-## Let's encrypt certificate
-
-
-TODO:
-
-- [ ] config and test 1 master multiple slaves
-- [ ] document certificate access uid:gid (ldap == 666)
-- [ ] document active/inactive users
-- [ ] Add volumes? json? to init user data the first time
-- [ ] allow runing batch creation
-- [ ] add a tools to generate init user/application/group accounts
-- [ ] test password policies
-- [ ] test restarting CR / test with mapped volume
-- [ ] test upgrade version
-- [ ] http://www.openldap.org/doc/admin24/security.html
-- [ ] automate renew LE CA
-
-# Tips:
-
-## Generate ssha password
-
-You can securly store password with ssha encryption. ``slappasswd``
-can generate that hash for you to use it securly in you ldif files.
-
-A way to do is by running ``slappasswd`` using that same image:
+## Running Tests
 
 ```bash
-docker run -it --rm --entrypoint slappasswd ghcr.io/apycod/openldap-docker -s MySecrets
-{SSHA}TYtweERxzym/BomeU820EOqoIxJ2X+oT
+./tests/run_test.sh
+```
+
+Use `./tests/run_test.sh -k` to keep the test LDAP container running on port `636` after tests complete.
+
+## Tips
+
+### Generate a password hash (`{ARGON2}`)
+
+You can generate `{ARGON2}` password hashes for `LDAP_ROOT_PASSWORD`, `LDAP_DEFAULT_ADMIN_PASSWORD`, or LDIF files using `slappasswd` from this image:
+
+```bash
+docker run -it --rm --entrypoint slappasswd ghcr.io/apycod/openldap-docker \
+  -o module-path=/usr/lib/openldap -o module-load=argon2.so -h "{ARGON2}" -s MySecrets
 ```
