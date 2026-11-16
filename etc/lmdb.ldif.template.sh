@@ -92,13 +92,17 @@ olcAccess: {200}
     by dn.subtree="ou=applications,$ROOT_LDAP_DC" read
     by * none
 # allow ldap admin to create/write on people sub-tree
-# allow ldap application users to read on people sub-tree
-# TODO: Could be nice to improve to let applications users read only
-# to the revelant group
+# allow ldap application users to read only basic identity attributes on people
+olcAccess: {290}
+  to dn.subtree="ou=people,$ROOT_LDAP_DC"
+    attrs=entry,objectClass,uid,cn,sn,givenName,displayName,mail,o,ou
+    by group.exact="cn=ldap_people_admin,ou=groups,$ROOT_LDAP_DC" write
+    by dn.one="ou=applications,$ROOT_LDAP_DC" read
+    by self read
+    by * none
 olcAccess: {300}
   to dn.subtree="ou=people,$ROOT_LDAP_DC"
     by group.exact="cn=ldap_people_admin,ou=groups,$ROOT_LDAP_DC" write
-    by dn.one="ou=applications,$ROOT_LDAP_DC" read
     by self read
     by * none
 olcAccess: {350}

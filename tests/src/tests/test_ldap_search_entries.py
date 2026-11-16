@@ -194,3 +194,81 @@ class TestLdapRemoveEntries(LdapTestCase):
             test_suite,
             "testing to search people member of fakeapp"
         )
+
+    def test_app_cannot_read_restricted_people_attributes(self):
+        from uuid import uuid4
+        user_uid = "user-%s" % uuid4()
+        user_dn = "uid=%s,ou=people,%s" % (user_uid, ROOT_DC)
+        self.create_user(user_uid, user_dn)
+
+        def cleanup():
+            from .features import ldap_connection, ROOT_LDAP_DN, ROOT_LDAP_SECRET
+            with ldap_connection(
+                    dn=ROOT_LDAP_DN, password=ROOT_LDAP_SECRET
+            ) as root_con:
+                root_con.delete(user_dn)
+
+        self.addCleanup(cleanup)
+
+        def search_user_attrs(con, context, data):
+            res = con.search(
+                user_dn,
+                '(objectclass=inetOrgPerson)',
+                attributes=['uid', 'cn', 'mobile']
+            )
+            if res and con.entries:
+                entry = con.entries[0]
+                data['has_uid'] = bool(entry.uid.values)
+                data['has_mobile'] = bool(entry.mobile.values)
+            else:
+                data['has_uid'] = False
+                data['has_mobile'] = False
+            return res, con.result
+
+        def assert_only_identity_attrs(con, context, data):
+            self.assertTrue(data.get('has_uid'))
+            self.assertFalse(data.get('has_mobile'))
+
+        def assert_all_attrs(con, context, data):
+            self.assertTrue(data.get('has_uid'))
+            self.assertTrue(data.get('has_mobile'))
+
+        test_suite = {
+            'anonymous': {'assert': self.assertFalse, },
+            'user': {'assert': self.assertFalse, },
+            'user-people-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_all_attrs,
+            },
+            'user-apps-admin': {'assert': self.assertFalse, },
+            'user-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_all_attrs,
+            },
+            'admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_all_attrs,
+            },
+            'app': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_only_identity_attrs,
+            },
+            'app-people-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_all_attrs,
+            },
+            'app-apps-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_only_identity_attrs,
+            },
+            'app-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_all_attrs,
+            },
+        }
+
+        self.run_case(
+            search_user_attrs,
+            test_suite,
+            "testing that apps can only read basic identity attributes on people"
+        )

@@ -10,9 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - GitHub Actions workflow ([.github/workflows/ci.yml](.github/workflows/ci.yml)): runs unit tests on push/PR and publishes monthly uncached builds to GitHub Container Registry (`ghcr.io/apycod/openldap-docker`).
 - [ROADMAP.md](ROADMAP.md) tracking identified security improvements and operational fixes.
 - Unit tests in [test_ldap_update_entries.py](tests/src/tests/test_ldap_update_entries.py) verifying privilege isolation between `cn=ldap_people_admin` and `cn=ldap_apps_admin`.
+- Unit test in [test_ldap_search_entries.py](tests/src/tests/test_ldap_search_entries.py) verifying that application accounts can only read basic identity attributes on `ou=people` (and cannot read restricted attributes such as `mobile`).
 
 ### Changed
-- **Security (ACLs)**: added `olcAccess: {390}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) to prevent members of `cn=ldap_people_admin` from modifying `cn=ldap_apps_admin` (privilege escalation). Members of `cn=ldap_people_admin` retain read access.
+- **Security (ACLs)**:
+  - Added `olcAccess: {290}` and updated `{300}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) so `ou=applications` accounts can only read basic identity attributes (`entry`, `objectClass`, `uid`, `cn`, `sn`, `givenName`, `displayName`, `mail`, `o`, `ou`) on `ou=people` (in addition to `memberOf` via `{200}`).
+  - Added `olcAccess: {390}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) to prevent members of `cn=ldap_people_admin` from modifying `cn=ldap_apps_admin` (privilege escalation). Members of `cn=ldap_people_admin` retain read access.
 - **Security (`entrypoint.sh`)**:
   - `LDAP_DEFAULT_ADMIN_PASSWORD` no longer defaults to `"Change Me!"`; a random password is generated if unset.
   - Removed printing `/etc/openldap/slapd.ldif` to container logs and deleted the temporary file after `slapadd`.
