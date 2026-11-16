@@ -19,6 +19,7 @@ RUN  adduser -D -H -u 666  ldap \
   openldap-overlay-memberof \
   openldap-overlay-refint \
   openldap-overlay-ppolicy \
+  openldap-passwd-argon2 \
   dumb-init \
   && rm -rf /var/cache/apk/* \
   && rm /etc/openldap/*.ldif \

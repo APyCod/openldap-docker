@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - [ROADMAP.md](ROADMAP.md) tracking identified security improvements and operational fixes.
 - Unit tests in [test_ldap_update_entries.py](tests/src/tests/test_ldap_update_entries.py) verifying privilege isolation between `cn=ldap_people_admin` and `cn=ldap_apps_admin`.
 - Unit test in [test_ldap_search_entries.py](tests/src/tests/test_ldap_search_entries.py) verifying that application accounts can only read basic identity attributes on `ou=people` (and cannot read restricted attributes such as `mobile`).
+- Argon2 password hashing (`openldap-passwd-argon2` / `argon2.so`) with `olcPasswordHash: {ARGON2}` on `olcDatabase=frontend,cn=config` and unit test `test_password_hashed_with_argon2` in [test_ldap_update_entries.py](tests/src/tests/test_ldap_update_entries.py).
 
 ### Changed
 - **Security (ACLs)**:
@@ -35,3 +36,17 @@ add: olcAccess
 olcAccess: {390}to dn.exact="cn=ldap_apps_admin,ou=groups,dc=example,dc=com" by group.exact="cn=ldap_apps_admin,ou=groups,dc=example,dc=com" write by group.exact="cn=ldap_people_admin,ou=groups,dc=example,dc=com" read by dn.one="ou=applications,dc=example,dc=com" read by * none
 ```
 *(Replace `dc=example,dc=com` with your `ROOT_DC`.)*
+
+To enable `{ARGON2}` on an existing production instance (existing `{SSHA}` passwords continue to authenticate normally and are upgraded to `{ARGON2}` on next password change):
+
+```ldif
+dn: cn=module{0},cn=config
+changetype: modify
+add: olcModuleLoad
+olcModuleLoad: argon2.so
+
+dn: olcDatabase={-1}frontend,cn=config
+changetype: modify
+add: olcPasswordHash
+olcPasswordHash: {ARGON2}
+```

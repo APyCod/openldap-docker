@@ -1112,3 +1112,49 @@ class TestLdapUpdateEntries(LdapTestCase):
                 "ldap_people_admin members"
             ),
         )
+
+    def test_password_hashed_with_argon2(self):
+        user_uid = "user-%s" % uuid4()
+        user_dn = "uid=%s,ou=people,%s" % (user_uid, ROOT_DC)
+        new_password = "argon2-test-password-%s" % uuid4()
+
+        def clean():
+            with ldap_connection(
+                    dn=ROOT_LDAP_DN, password=ROOT_LDAP_SECRET
+            ) as root_con:
+                root_con.delete(user_dn)
+
+        self.addCleanup(clean)
+        self.create_user(user_uid, user_dn)
+
+        with ldap_connection(
+                dn=ROOT_LDAP_DN, password=ROOT_LDAP_SECRET
+        ) as root_con:
+            self.assertTrue(
+                root_con.modify(
+                    user_dn,
+                    {'userPassword': [(MODIFY_REPLACE, [new_password])]}
+                ),
+                root_con.result
+            )
+            self.assertTrue(
+                root_con.search(
+                    user_dn,
+                    '(objectclass=inetOrgPerson)',
+                    attributes=['userPassword']
+                ),
+                root_con.result
+            )
+            stored_pwd = root_con.entries[0].userPassword.value
+            if isinstance(stored_pwd, bytes):
+                stored_pwd = stored_pwd.decode('utf-8')
+            self.assertTrue(
+                stored_pwd.startswith('{ARGON2}'),
+                "Expected {ARGON2} hash, got %r" % stored_pwd
+            )
+
+        with ldap_connection(dn=user_dn, password=new_password) as user_con:
+            self.assertTrue(
+                user_con.search(user_dn, '(objectclass=*)'),
+                user_con.result
+            )

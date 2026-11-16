@@ -11,15 +11,15 @@ set -e
 set +x
 
 PASS=`< /dev/urandom tr -dc _A-Za-z0-9@#%^+=- | head -c 32;echo`
-SSHA_PASS=`slappasswd -ns "$PASS"`
+ARGON2_PASS=`slappasswd -o module-path=/usr/lib/openldap -o module-load=argon2.so -h "{ARGON2}" -ns "$PASS"`
 
-LDAP_ROOT_PASSWORD=${LDAP_ROOT_PASSWORD:-$SSHA_PASS}
+LDAP_ROOT_PASSWORD=${LDAP_ROOT_PASSWORD:-$ARGON2_PASS}
 LDAP_LOG_LEVEL=${LDAP_LOG_LEVEL:-64}
 LDAP_DEFAULT_ADMIN_UID=${LDAP_DEFAULT_ADMIN_UID:-"administrator"}
 if [[ -z "$LDAP_DEFAULT_ADMIN_PASSWORD" ]]; then
     echo "WARNING: LDAP_DEFAULT_ADMIN_PASSWORD is not set, generating a random password." >&2
     DEFAULT_ADMIN_PASS=`< /dev/urandom tr -dc _A-Za-z0-9@#%^+=- | head -c 32;echo`
-    LDAP_DEFAULT_ADMIN_PASSWORD=`slappasswd -ns "$DEFAULT_ADMIN_PASS"`
+    LDAP_DEFAULT_ADMIN_PASSWORD=`slappasswd -o module-path=/usr/lib/openldap -o module-load=argon2.so -h "{ARGON2}" -ns "$DEFAULT_ADMIN_PASS"`
 fi
 DOMAIN=${DOMAIN:-example.com}
 ORGANIZATION=${ORGANIZATION:-"Example corporation"}

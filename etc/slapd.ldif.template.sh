@@ -92,6 +92,7 @@ olcModuleload: memberof.so
 olcModuleload: refint.so
 olcModuleload: ppolicy.so
 olcModuleload: back_mdb.so
+olcModuleload: argon2.so
 
 dn: cn=schema,cn=config
 objectClass: olcSchemaConfig
@@ -108,5 +109,6 @@ dn: olcDatabase=frontend,cn=config
 objectClass: olcDatabaseConfig
 objectClass: olcFrontendConfig
 olcDatabase: frontend
+olcPasswordHash: {ARGON2}
 
 EOF
