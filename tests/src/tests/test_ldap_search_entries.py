@@ -272,3 +272,50 @@ class TestLdapRemoveEntries(LdapTestCase):
             test_suite,
             "testing that apps can only read basic identity attributes on people"
         )
+
+    def test_cannot_read_own_user_password(self):
+        def search_own_password(con, context, data):
+            res = con.search(
+                context['user_dn'],
+                '(objectclass=*)',
+                attributes=['uid', 'userPassword']
+            )
+            if res and con.entries:
+                data['has_password'] = bool(con.entries[0].userPassword.values)
+            else:
+                data['has_password'] = False
+            return res, con.result
+
+        def assert_no_password(con, context, data):
+            self.assertFalse(
+                data.get('has_password'),
+                "User %s should not be able to read its own userPassword" % (
+                    context['user_dn'],
+                )
+            )
+
+        test_suite = {
+            'anonymous': None,
+            'user': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_no_password,
+            },
+            'user-apps-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_no_password,
+            },
+            'app': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_no_password,
+            },
+            'app-people-admin': {
+                'assert': self.assertTrue,
+                'run_after_test': assert_no_password,
+            },
+        }
+
+        self.run_case(
+            search_own_password,
+            test_suite,
+            "testing that non-admin users and apps cannot read own userPassword"
+        )

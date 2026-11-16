@@ -72,7 +72,7 @@ olcRootPW: $LDAP_PASSWORD
 # denying all access to others
 olcAccess: {100}
   to dn.one="ou=people,$ROOT_LDAP_DC" attrs=userPassword
-    by self write
+    by self =wx
     by group.exact="cn=ldap_people_admin,ou=groups,$ROOT_LDAP_DC" write
     by anonymous auth
     by * none
@@ -81,7 +81,6 @@ olcAccess: {100}
 olcAccess: {150}
   to dn.one="ou=applications,$ROOT_LDAP_DC" attrs=userPassword
     by group.exact="cn=ldap_apps_admin,ou=groups,$ROOT_LDAP_DC" write
-    by self read
     by anonymous auth
     by * none
 # Nobody can set memberOf directly, ldap admin members should edit member
