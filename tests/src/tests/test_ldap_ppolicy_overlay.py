@@ -104,3 +104,43 @@ class TestLdapPPolicyOverlay(LdapTestCase):
             test_suite,
             "testing to update its own cn attribute"
         )
+
+    def test_default_policy_min_length_and_safe_modify(self):
+        user_uid = "user-%s" % uuid4()
+        user_dn = "uid=%s,ou=people,%s" % (user_uid, ROOT_DC)
+        initial_pass = "InitialStrongPass-%s" % uuid4()
+
+        def clean():
+            with ldap_connection(
+                    dn=ROOT_LDAP_DN, password=ROOT_LDAP_SECRET
+            ) as root_con:
+                root_con.delete(user_dn)
+
+        self.addCleanup(clean)
+        self.create_user(user_uid, user_dn)
+        self.reset_password(user_dn, initial_pass)
+
+        with ldap_connection(dn=user_dn, password=initial_pass) as user_con:
+            # pwdMinLength: 12 must reject a short password
+            ok, _ = self.change_ldap_password(
+                user_con, user_dn, initial_pass, "short123"
+            )
+            self.assertFalse(ok, "Password shorter than 12 chars should fail")
+
+            # pwdSafeModify: TRUE must reject self-modify without old password
+            self.assertFalse(
+                user_con.modify(
+                    user_dn,
+                    {'userPassword': [
+                        (MODIFY_REPLACE, ["NewStrongPass-%s" % uuid4()])
+                    ]}
+                ),
+                "Self password modify without old password should fail"
+            )
+
+            # Valid >= 12-char password with old password must succeed
+            new_pass = "NewStrongPass-%s" % uuid4()
+            ok, res = self.change_ldap_password(
+                user_con, user_dn, initial_pass, new_pass
+            )
+            self.assertTrue(ok, res)

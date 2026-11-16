@@ -12,8 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Unit tests in [test_ldap_update_entries.py](tests/src/tests/test_ldap_update_entries.py) verifying privilege isolation between `cn=ldap_people_admin` and `cn=ldap_apps_admin`.
 - Unit test in [test_ldap_search_entries.py](tests/src/tests/test_ldap_search_entries.py) verifying that application accounts can only read basic identity attributes on `ou=people` (and cannot read restricted attributes such as `mobile`).
 - Argon2 password hashing (`openldap-passwd-argon2` / `argon2.so`) with `olcPasswordHash: {ARGON2}` on `olcDatabase=frontend,cn=config` and unit test `test_password_hashed_with_argon2` in [test_ldap_update_entries.py](tests/src/tests/test_ldap_update_entries.py).
+- Unit test `test_default_policy_min_length_and_safe_modify` in [test_ldap_ppolicy_overlay.py](tests/src/tests/test_ldap_ppolicy_overlay.py).
 
 ### Changed
+- **Security (`ppolicy`)**: hardened default password policy in [base/01_policies.ldif.template.sh](base/01_policies.ldif.template.sh) (`pwdMinLength: 12`, `pwdFailureCountInterval: 300`, `pwdLockoutDuration: 300`, `pwdSafeModify: TRUE`).
 - **Security (ACLs)**:
   - Added `olcAccess: {290}` and updated `{300}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) so `ou=applications` accounts can only read basic identity attributes (`entry`, `objectClass`, `uid`, `cn`, `sn`, `givenName`, `displayName`, `mail`, `o`, `ou`) on `ou=people` (in addition to `memberOf` via `{200}`).
   - Added `olcAccess: {390}` in [etc/lmdb.ldif.template.sh](etc/lmdb.ldif.template.sh) to prevent members of `cn=ldap_people_admin` from modifying `cn=ldap_apps_admin` (privilege escalation). Members of `cn=ldap_people_admin` retain read access.
@@ -49,4 +51,22 @@ dn: olcDatabase={-1}frontend,cn=config
 changetype: modify
 add: olcPasswordHash
 olcPasswordHash: {ARGON2}
+```
+
+To harden the default `ppolicy` on an existing production instance:
+
+```ldif
+dn: cn=default,ou=policies,dc=example,dc=com
+changetype: modify
+replace: pwdMinLength
+pwdMinLength: 12
+-
+replace: pwdFailureCountInterval
+pwdFailureCountInterval: 300
+-
+replace: pwdLockoutDuration
+pwdLockoutDuration: 300
+-
+replace: pwdSafeModify
+pwdSafeModify: TRUE
 ```

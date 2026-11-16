@@ -41,26 +41,23 @@ pwdAllowUserChange: TRUE
 pwdAttribute: userPassword
 pwdCheckQuality: 1
 pwdExpireWarning: 600
-pwdFailureCountInterval: 30
+pwdFailureCountInterval: 300
 pwdGraceAuthNLimit: 5
 pwdInHistory: 5
 pwdLockout: TRUE
-pwdLockoutDuration: 60
+pwdLockoutDuration: 300
 # This attribute contains the number of seconds after which a modified password
 # will expire. If this attribute is not present, or if its value is zero (0),
 # then passwords will not expire.
 pwdMaxAge: 0
 pwdMaxFailure: 5
 pwdMinAge: 0
-pwdMinLength: 5
+pwdMinLength: 12
 # If set to TRUE this make possible to ask user to change password while
 # they connect the first time the matter is to make sure we have tool that
 # can handle this behaviour
 pwdMustChange: FALSE
-# If set to TRUE users must supply old password while changeing password
-# this is sucks for people that administrate other people that needs to
-# reset password. I havn't find a proper way to do it. Also needs to make
-# sure we have tool to change password in a such way
-pwdSafeModify: FALSE
+# Require old password when users change their own password
+pwdSafeModify: TRUE
 
 EOF
